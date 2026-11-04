@@ -41,7 +41,7 @@ func run(ctx context.Context, cancel context.CancelFunc, httpPort int, dataDir s
 
 	st, err := store.New(dataDir, logger)
 	if err != nil {
-		logger.Info(fmt.Sprintf("failed to create store: %v\n", err))
+		logger.Error(fmt.Sprintf("failed to create store: %v\n", err))
 		return 1
 	}
 
@@ -52,19 +52,19 @@ func run(ctx context.Context, cancel context.CancelFunc, httpPort int, dataDir s
 		serverErr = s.start()
 	}()
 
-	logger.Info(fmt.Sprintf("Linko is running on http://localhost:%d", httpPort))
+	logger.Debug(fmt.Sprintf("Linko is running on http://localhost:%d", httpPort))
 
 	<-ctx.Done()
 	shutdownCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
-	logger.Info("Linko is shutting down")
+	logger.Debug("Linko is shutting down")
 	if err := s.shutdown(shutdownCtx); err != nil {
-		logger.Info(fmt.Sprintf("failed to shutdown server: %v\n", err))
+		logger.Error(fmt.Sprintf("failed to shutdown server: %v\n", err))
 		return 1
 	}
 	if serverErr != nil {
-		logger.Info(fmt.Sprintf("server error: %v", serverErr))
+		logger.Error(fmt.Sprintf("server error: %v", serverErr))
 		return 1
 	}
 	return 0
@@ -73,6 +73,10 @@ func run(ctx context.Context, cancel context.CancelFunc, httpPort int, dataDir s
 type closeFn func() error
 
 func initializeLogger() (*slog.Logger, closeFn, error) {
+	debugHandler := slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{
+		Level: slog.LevelDebug,
+	})
+
 	if logFileName := os.Getenv("LINKO_LOG_FILE"); logFileName != "" {
 		f, err := os.OpenFile(
 			logFileName,
@@ -84,10 +88,14 @@ func initializeLogger() (*slog.Logger, closeFn, error) {
 			panic(err)
 		}
 
-		h := slog.NewTextHandler(io.MultiWriter(os.Stderr, buf), nil)
-		return slog.New(h), buf.Flush, nil
+		infoHandler := slog.NewTextHandler(io.MultiWriter(os.Stderr, buf), &slog.HandlerOptions{
+			Level: slog.LevelInfo,
+		})
+
+		return slog.New(
+			slog.NewMultiHandler(debugHandler, infoHandler),
+		), buf.Flush, nil
 	}
 
-	h := slog.NewTextHandler(os.Stderr, nil)
-	return slog.New(h), func() error { return nil }, nil
+	return slog.New(debugHandler), func() error { return nil }, nil
 }
