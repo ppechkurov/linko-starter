@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"context"
 	"flag"
+	"fmt"
 	"io"
 	"log"
 	"os"
@@ -27,7 +28,16 @@ func main() {
 }
 
 func run(ctx context.Context, cancel context.CancelFunc, httpPort int, dataDir string) int {
-	logger := initializeLogger()
+	logger, close, err := initializeLogger()
+	if err != nil {
+		fmt.Printf("initializing logger: %v\n", err)
+		return 1
+	}
+	defer func() {
+		if err = close(); err != nil {
+			fmt.Printf("closing logger: %v\n", err)
+		}
+	}()
 
 	st, err := store.New(dataDir, logger)
 	if err != nil {
@@ -60,7 +70,9 @@ func run(ctx context.Context, cancel context.CancelFunc, httpPort int, dataDir s
 	return 0
 }
 
-func initializeLogger() *log.Logger {
+type closeFn func() error
+
+func initializeLogger() (*log.Logger, closeFn, error) {
 	if logFileName := os.Getenv("LINKO_LOG_FILE"); logFileName != "" {
 		f, err := os.OpenFile(
 			logFileName,
@@ -71,7 +83,17 @@ func initializeLogger() *log.Logger {
 		if err != nil {
 			panic(err)
 		}
-		return log.New(io.MultiWriter(os.Stderr, buf), "", log.LstdFlags)
+
+		return log.New(
+			io.MultiWriter(os.Stderr, buf),
+			"",
+			log.LstdFlags,
+		), buf.Flush, nil
 	}
-	return log.New(os.Stderr, "", log.LstdFlags)
+
+	return log.New(
+		os.Stderr,
+		"",
+		log.LstdFlags,
+	), func() error { return nil }, nil
 }
