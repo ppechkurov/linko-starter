@@ -5,7 +5,6 @@ import (
 	"context"
 	"flag"
 	"fmt"
-	"io"
 	"log/slog"
 	"os"
 	"os/signal"
@@ -88,7 +87,7 @@ func initializeLogger() (*slog.Logger, closeFn, error) {
 			panic(err)
 		}
 
-		infoHandler := slog.NewTextHandler(io.MultiWriter(os.Stderr, buf), &slog.HandlerOptions{
+		infoHandler := slog.NewJSONHandler(buf, &slog.HandlerOptions{
 			Level: slog.LevelInfo,
 		})
 
