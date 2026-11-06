@@ -29,6 +29,13 @@ func main() {
 }
 
 func run(ctx context.Context, cancel context.CancelFunc, httpPort int, dataDir string) int {
+	cancelTracing, err := initTracing(ctx)
+	if err != nil {
+		fmt.Printf("initializing tracing: %v\n", err)
+		return 1
+	}
+	defer cancelTracing(ctx)
+
 	logger, close, err := initializeLogger()
 	if err != nil {
 		fmt.Printf("initializing logger: %v\n", err)

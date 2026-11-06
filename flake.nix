@@ -36,6 +36,7 @@
               gopls
               gotestsum
               gotools
+              graphviz
               nodejs_24
               watchexec
             ];

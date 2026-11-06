@@ -59,11 +59,14 @@ func (s *server) authMiddleware(next http.Handler) http.Handler {
 }
 
 func (s *server) validatePassword(password, stored string) (bool, error) {
-	return true, nil
 	err := bcrypt.CompareHashAndPassword([]byte(stored), []byte(password))
 	if err == bcrypt.ErrMismatchedHashAndPassword {
 		return false, nil
 	}
 
-	return err != nil, err
+	if err != nil {
+		return false, err
+	}
+
+	return true, nil
 }
