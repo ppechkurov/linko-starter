@@ -91,12 +91,23 @@ func metricsMiddleware(next http.Handler) http.Handler {
 func requestLogger(logger *slog.Logger) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			r = r.WithContext(
+				context.WithValue(r.Context(), logContextKey, &LogContext{}),
+			)
 			next.ServeHTTP(w, r)
-			logger.Info("Served request",
+
+			ctx := r.Context().Value(logContextKey).(*LogContext)
+
+			args := []slog.Attr{
 				slog.String("method", r.Method),
 				slog.String("path", r.URL.Path),
 				slog.String("client_ip", r.RemoteAddr),
-			)
+			}
+			if ctx.Username != "" {
+				args = append(args, slog.String("user", ctx.Username))
+			}
+			logger.LogAttrs(r.Context(), slog.LevelInfo, "Served request", args...)
+			logger.InfoContext(r.Context(), "served ctx")
 		})
 	}
 }
