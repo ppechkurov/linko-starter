@@ -28,6 +28,9 @@ type LogContext struct {
 
 func (s *server) authMiddleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		ctx, sp := tracer.Start(r.Context(), "http.auth")
+		defer sp.End()
+
 		username, password, ok := r.BasicAuth()
 		if !ok {
 			http.Error(w, "Unauthorized", http.StatusUnauthorized)
@@ -38,6 +41,10 @@ func (s *server) authMiddleware(next http.Handler) http.Handler {
 			http.Error(w, "Unauthorized", http.StatusUnauthorized)
 			return
 		}
+
+		ctx, sp = tracer.Start(ctx, "auth.validate_password")
+		defer sp.End()
+
 		ok, err := s.validatePassword(password, stored)
 		if err != nil {
 			s.logger.Info(fmt.Sprintf("error validating password for user: %s, error: %v\n", username, err))
@@ -49,9 +56,11 @@ func (s *server) authMiddleware(next http.Handler) http.Handler {
 			return
 		}
 
-		r = r.WithContext(context.WithValue(r.Context(), UserContextKey, username))
-		ctx := r.Context().Value(logContextKey).(*LogContext)
-		ctx.Username = username
+		sp.End()
+
+		r = r.WithContext(context.WithValue(ctx, UserContextKey, username))
+		logCtx := ctx.Value(logContextKey).(*LogContext)
+		logCtx.Username = username
 		r = r.WithContext(context.WithValue(r.Context(), logContextKey, ctx))
 
 		next.ServeHTTP(w, r)

@@ -27,16 +27,25 @@ var (
 var indexPage string
 
 func (s *server) handlerIndex(w http.ResponseWriter, r *http.Request) {
+	_, sp := tracer.Start(r.Context(), "handler.index")
+	defer sp.End()
+
 	w.Header().Set("Content-Type", "text/html")
 	io.WriteString(w, indexPage)
 }
 
 func (s *server) handlerLogin(w http.ResponseWriter, r *http.Request) {
+	_, sp := tracer.Start(r.Context(), "handler.login")
+	defer sp.End()
+
 	w.WriteHeader(http.StatusOK)
 }
 
 func (s *server) handlerShortenLink(w http.ResponseWriter, r *http.Request) {
-	user, ok := r.Context().Value(UserContextKey).(string)
+	ctx, sp := tracer.Start(r.Context(), "handler.shorten_link")
+	defer sp.End()
+
+	user, ok := ctx.Value(UserContextKey).(string)
 	if !ok || user == "" {
 		http.Error(w, "unauthorized", http.StatusUnauthorized)
 		return
@@ -47,6 +56,9 @@ func (s *server) handlerShortenLink(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	ctx, sp = tracer.Start(ctx, "http.verify_destination")
+	defer sp.End()
+
 	u, err := url.Parse(longURL)
 	if err != nil || u.Scheme == "" || u.Host == "" {
 		http.Error(w, "invalid URL: must include scheme (http/https) and host", http.StatusBadRequest)
@@ -56,6 +68,9 @@ func (s *server) handlerShortenLink(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, fmt.Sprintf("invalid target URL: %v", err), http.StatusBadRequest)
 		return
 	}
+
+	sp.End()
+
 	shortCode, err := s.store.Create(r.Context(), longURL)
 	if err != nil {
 		http.Error(w, "failed to shorten URL", http.StatusInternalServerError)
